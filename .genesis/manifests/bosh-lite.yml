@@ -1,0 +1,2451 @@
+instance_groups:
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - name: smoke_tests
+    properties:
+      smoke_tests:
+        api: https://api.system.bosh-lite.com
+        apps_domain: run.bosh-lite.com
+        cf_dial_timeout_in_seconds: 300
+        org: cf_smoke_tests_org
+        password: REDACTED
+        skip_ssl_validation: true
+        space: cf_smoke_tests_space
+        user: admin
+    release: cf-smoke-tests
+  lifecycle: errand
+  name: smoke-tests
+  networks:
+  - name: cf-core
+  stemcell: default
+  update:
+    max_in_flight: 1
+    serial: true
+  vm_type: small
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server:
+        from: consul_server_link
+    name: consul_agent
+    properties:
+      consul:
+        agent:
+          domain: cf.internal
+          log_level: info
+          mode: server
+          services:
+            etcd:
+              name: cf-etcd
+        agent_cert: REDACTED
+        agent_key: REDACTED
+        ca_cert: REDACTED
+        encrypt_keys:
+        - REDACTED
+        server_cert: REDACTED
+        server_key: REDACTED
+    provides:
+      consul_client:
+        as: consul_client_link
+        shared: true
+      consul_common:
+        as: consul_common_link
+        shared: true
+      consul_server:
+        as: consul_server_link
+        shared: true
+    release: consul
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  - name: etcd
+    properties:
+      etcd:
+        advertise_urls_dns_suffix: cf-etcd.service.cf.internal
+        ca_cert: REDACTED
+        client_cert: REDACTED
+        client_key: REDACTED
+        cluster:
+        - instances: 1
+          name: consul_etcd
+        dns_suffix: cf-etcd.service.cf.internal
+        machines:
+        - cf-etcd.service.cf.internal
+        peer_ca_cert: REDACTED
+        peer_cert: REDACTED
+        peer_key: REDACTED
+        peer_require_ssl: true
+        require_ssl: true
+        server_cert: REDACTED
+        server_key: REDACTED
+    release: etcd
+  - name: etcd_metrics_server
+    properties:
+      etcd_metrics_server:
+        etcd:
+          ca_cert: REDACTED
+          client_cert: REDACTED
+          client_key: REDACTED
+          dns_suffix: cf-etcd.service.cf.internal
+          machines:
+          - cf-etcd.service.cf.internal
+          require_ssl: true
+    release: etcd
+  name: consul_etcd
+  networks:
+  - name: cf-core
+  persistent_disk_type: consul
+  stemcell: default
+  update:
+    max_in_flight: 1
+    serial: true
+  vm_type: small
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    release: consul
+  - name: haproxy
+    properties:
+      ha_proxy:
+        backend_servers:
+        - 10.244.0.2
+        disable_tls_10: false
+        disable_tls_11: false
+        internal_only_domains: []
+        ssl_pem: REDACTED
+        tcp:
+        - backend_port: 80
+          backend_servers:
+          - 10.244.0.2
+          name: wss
+          port: 4443
+          ssl: true
+        tcp_link_port: 2222
+        trusted_domain_cidrs: ""
+    release: haproxy
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  name: haproxy
+  networks:
+  - name: cf-edge
+    static_ips:
+    - 10.244.0.34
+  stemcell: default
+  vm_extensions:
+  - cf-elb
+  - ssh-elb
+  vm_type: small
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    release: consul
+  - name: nats
+    properties:
+      nats:
+        debug: false
+        password: REDACTED
+        trace: false
+        user: nats_user
+    provides:
+      nats:
+        as: nats
+        shared: true
+    release: nats
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  name: nats
+  networks:
+  - name: cf-core
+    static_ips:
+    - 10.244.1.2
+  stemcell: default
+  vm_type: small
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    properties:
+      consul:
+        agent:
+          services:
+            doppler:
+              name: doppler
+    release: consul
+  - name: doppler
+    properties:
+      doppler:
+        etcd:
+          ca_cert: REDACTED
+          client_cert: REDACTED
+          client_key: REDACTED
+          dns_suffix: cf-etcd.service.cf.internal
+          machines:
+          - cf-etcd.service.cf.internal
+          require_ssl: true
+      doppler_endpoint:
+        shared_secret: REDACTED
+      loggregator:
+        etcd:
+          ca_cert: REDACTED
+          client_cert: REDACTED
+          client_key: REDACTED
+          dns_suffix: cf-etcd.service.cf.internal
+          machines:
+          - cf-etcd.service.cf.internal
+          require_ssl: true
+        tls:
+          ca_cert: REDACTED
+          doppler:
+            cert: REDACTED
+            key: REDACTED
+    release: loggregator
+  - name: syslog_drain_binder
+    properties:
+      cc:
+        mutual_tls:
+          ca_cert: REDACTED
+          private_key: REDACTED
+          public_cert: REDACTED
+        srv_api_uri: https://api.system.bosh-lite.com
+      loggregator:
+        etcd:
+          ca_cert: REDACTED
+          client_cert: REDACTED
+          client_key: REDACTED
+          dns_suffix: cf-etcd.service.cf.internal
+          machines:
+          - cf-etcd.service.cf.internal
+          require_ssl: true
+        tls:
+          syslogdrainbinder:
+            cert: REDACTED
+            key: REDACTED
+      ssl:
+        skip_cert_verify: true
+      syslog_drain_binder:
+        etcd:
+          ca_cert: REDACTED
+          client_cert: REDACTED
+          client_key: REDACTED
+          dns_suffix: cf-etcd.service.cf.internal
+          machines:
+          - cf-etcd.service.cf.internal
+          require_ssl: true
+      system_domain: system.bosh-lite.com
+    release: loggregator
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  name: doppler
+  networks:
+  - name: cf-core
+  stemcell: default
+  vm_type: small
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    release: consul
+  - name: postgres
+    properties:
+      pgpool:
+        databases:
+        - extensions:
+          - citext
+          - pgcrypto
+          name: ccdb
+          users:
+          - ccadmin
+        - extensions:
+          - citext
+          - pgcrypto
+          name: uaadb
+          users:
+          - uaaadmin
+        - extensions:
+          - citext
+          - pgcrypto
+          name: diegodb
+          users:
+          - diegoadmin
+        - name: routingdb
+          users:
+          - routingadmin
+        - name: netpoldb
+          users:
+          - netpoladmin
+        - name: silkdb
+          users:
+          - silkadmin
+        users:
+        - password: REDACTED
+          username: uaaadmin
+        - password: REDACTED
+          username: ccadmin
+        - password: REDACTED
+          username: diegoadmin
+        - password: REDACTED
+          username: routingadmin
+        - password: REDACTED
+          username: netpoladmin
+        - password: REDACTED
+          username: silkadmin
+      postgres:
+        config:
+          listen_addresses: '*'
+          port: 5432
+        hba:
+        - host all all 0.0.0.0/0 md5
+        - host all all ::/0 md5
+        replication:
+          enabled: false
+    release: postgres
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  name: postgres
+  networks:
+  - name: cf-db
+    static_ips:
+    - 10.244.2.2
+  persistent_disk_pool: postgres
+  stemcell: default
+  vm_type: large
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    properties:
+      consul:
+        agent:
+          services:
+            silk-controller:
+              name: silk-controller
+    release: consul
+  - name: cfdot
+    properties:
+      diego:
+        cfdot:
+          bbs:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+    release: diego
+  - name: bbs
+    properties:
+      diego:
+        bbs:
+          active_key_label: key1
+          auctioneer:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+          ca_cert: REDACTED
+          encryption_keys:
+          - label: key1
+            passphrase: REDACTED
+          etcd:
+            ca_cert: nil
+            client_cert: nil
+            client_key: nil
+            machines: []
+          rep:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+          server_cert: REDACTED
+          server_key: REDACTED
+          sql:
+            db_driver: postgres
+            db_host: 10.244.2.2
+            db_password: REDACTED
+            db_port: 5432
+            db_schema: diegodb
+            db_username: diegoadmin
+            max_open_connections: 500
+    release: diego
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  - name: silk-controller
+    properties:
+      cf_networking:
+        silk_controller:
+          ca_cert: REDACTED
+          database:
+            host: 10.244.2.2
+            name: silkdb
+            password: REDACTED
+            port: 5432
+            type: postgres
+            username: silkadmin
+          server_cert: REDACTED
+          server_key: REDACTED
+        silk_daemon:
+          ca_cert: REDACTED
+          client_cert: REDACTED
+          client_key: REDACTED
+    release: cf-networking
+  migrated_from:
+  - name: diego-bbs
+  - name: bbs
+  name: diego-api
+  networks:
+  - name: cf-core
+  stemcell: default
+  update:
+    serial: true
+  vm_type: small
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    properties:
+      consul:
+        agent:
+          services:
+            uaa: {}
+    release: consul
+  - name: uaa
+    properties:
+      login:
+        saml:
+          serviceProviderCertificate: REDACTED
+          serviceProviderKey: REDACTED
+      uaa:
+        admin:
+          client_secret: REDACTED
+        clients:
+          cc-service-dashboards:
+            authorities: clients.read,clients.write,clients.admin
+            authorized-grant-types: client_credentials
+            scope: openid,cloud_controller_service_permissions.read
+            secret: REDACTED
+          cc_routing:
+            authorities: routing.router_groups.read
+            authorized-grant-types: client_credentials
+            secret: REDACTED
+          cf:
+            access-token-validity: 600
+            authorities: uaa.none
+            authorized-grant-types: password,refresh_token
+            override: true
+            refresh-token-validity: 2592000
+            scope: network.admin,network.write,cloud_controller.read,cloud_controller.write,openid,password.write,cloud_controller.admin,scim.read,scim.write,doppler.firehose,uaa.user,routing.router_groups.read,routing.router_groups.write
+            secret: ""
+          cloud_controller_username_lookup:
+            authorities: scim.userids
+            authorized-grant-types: client_credentials
+            secret: REDACTED
+          doppler:
+            authorities: uaa.resource
+            authorized-grant-types: client_credentials
+            override: true
+            secret: REDACTED
+          firehose:
+            authorities: doppler.firehose,cloud_controller.admin
+            authorized-grant-types: client_credentials
+            scope: openid,oauth.approvals,scim.userids,cloud_controller.read
+            secret: REDACTED
+          gorouter:
+            authorities: routing.routes.read
+            authorized-grant-types: client_credentials
+            secret: REDACTED
+          network-policy:
+            authorities: uaa.resource,cloud_controller.admin_read_only
+            authorized-grant-types: client_credentials
+            secret: REDACTED
+          notifications:
+            authorities: cloud_controller.admin,scim.read
+            authorized-grant-types: client_credentials
+            secret: REDACTED
+          routing_api_client:
+            authorities: routing.routes.write,routing.routes.read,routing.router_groups.read
+            authorized-grant-types: client_credentials
+            secret: REDACTED
+          ssh-proxy:
+            authorized-grant-types: authorization_code
+            autoapprove: true
+            override: true
+            redirect-uri: https://uaa.system.bosh-lite.com/login
+            scope: openid,cloud_controller.read,cloud_controller.write
+            secret: REDACTED
+          tcp_emitter:
+            authorities: routing.routes.write,routing.routes.read,routing.router_groups.read
+            authorized-grant-types: client_credentials
+            secret: REDACTED
+          tcp_router:
+            authorities: routing.routes.read
+            authorized-grant-types: client_credentials
+            secret: REDACTED
+        jwt:
+          policy:
+            active_key_id: key-1
+            keys:
+              key-1:
+                signingKey: REDACTED
+        logging_level: info
+        scim:
+          users:
+          - groups:
+            - cloud_controller.admin
+            - doppler.firehose
+            - network.admin
+            - openid
+            - routing.router_groups.read
+            - routing.router_groups.write
+            - scim.read
+            - scim.write
+            name: admin
+            password: REDACTED
+        sslCertificate: REDACTED
+        sslPrivateKey: REDACTED
+        url: https://uaa.system.bosh-lite.com
+        zones:
+          internal:
+            hostnames:
+            - uaa.service.cf.internal
+      uaadb:
+        address: 10.244.2.2
+        databases:
+        - citext: true
+          name: uaadb
+          tag: uaa
+        db_scheme: postgresql
+        port: 5432
+        roles:
+        - name: uaaadmin
+          password: REDACTED
+          tag: admin
+    release: uaa
+  - name: route_registrar
+    properties:
+      route_registrar:
+        routes:
+        - health_check:
+            name: uaa-healthcheck
+            script_path: /var/vcap/jobs/uaa/bin/health_check
+          name: uaa
+          port: 8080
+          registration_interval: 10s
+          tags:
+            component: uaa
+          uris:
+          - uaa.system.bosh-lite.com
+          - '*.uaa.system.bosh-lite.com'
+          - login.system.bosh-lite.com
+          - '*.login.system.bosh-lite.com'
+    release: routing
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  - name: statsd_injector
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          statsd_injector:
+            cert: REDACTED
+            key: REDACTED
+      statsd_injector:
+        deployment: system.bosh-lite.com
+    release: statsd-injector
+  name: uaa
+  networks:
+  - name: cf-core
+  stemcell: default
+  vm_type: medium
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    properties:
+      consul:
+        agent:
+          services:
+            blobstore: {}
+    release: consul
+  - name: blobstore
+    properties:
+      blobstore:
+        admin_users:
+        - password: REDACTED
+          username: blobstore
+        secure_link:
+          secret: REDACTED
+        tls:
+          ca_cert: REDACTED
+          cert: REDACTED
+          private_key: REDACTED
+      system_domain: system.bosh-lite.com
+    release: capi
+  - name: route_registrar
+    properties:
+      route_registrar:
+        routes:
+        - name: blobstore
+          port: 8080
+          registration_interval: 20s
+          tags:
+            component: blobstore
+          uris:
+          - blobstore.system.bosh-lite.com
+    release: routing
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  name: blobstore
+  networks:
+  - name: cf-core
+  persistent_disk_type: blobstore
+  stemcell: default
+  vm_type: medium
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    properties:
+      consul:
+        agent:
+          services:
+            cloud_controller_ng: {}
+            policy-server:
+              name: policy-server
+            routing-api: {}
+    release: consul
+  - name: cloud_controller_ng
+    properties:
+      app_domains:
+      - run.bosh-lite.com
+      app_ssh:
+        host_key_fingerprint: REDACTED
+      cc:
+        buildpacks:
+          blobstore_type: webdav
+          buildpack_directory_key: bosh-lite-cc-buildpacks-REDACTED
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        bulk_api_password: REDACTED
+        db_encryption_key: REDACTED
+        db_logging_level: debug2
+        default_app_memory: 256
+        default_running_security_groups:
+        - public_networks
+        - dns
+        - services
+        - load_balancer
+        default_staging_security_groups:
+        - public_networks
+        - dns
+        - services
+        - load_balancer
+        default_to_diego_backend: true
+        droplets:
+          blobstore_type: webdav
+          droplet_directory_key: bosh-lite-cc-droplets-REDACTED
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        install_buildpacks:
+        - name: binary_buildpack
+          package: binary-buildpack
+        - name: dotnet_core_buildpack
+          package: dotnet-core-buildpack
+        - name: go_buildpack
+          package: go-buildpack
+        - name: java_buildpack
+          package: java-buildpack
+        - name: nodejs_buildpack
+          package: nodejs-buildpack
+        - name: php_buildpack
+          package: php-buildpack
+        - name: python_buildpack
+          package: python-buildpack
+        - name: ruby_buildpack
+          package: ruby-buildpack
+        - name: staticfile_buildpack
+          package: staticfile-buildpack
+        internal_api_password: REDACTED
+        internal_api_user: internal_api_user
+        logging_level: info
+        mutual_tls:
+          ca_cert: REDACTED
+          private_key: REDACTED
+          public_cert: REDACTED
+        packages:
+          app_package_directory_key: bosh-lite-cc-packages-REDACTED
+          blobstore_type: webdav
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        quota_definitions:
+          default:
+            memory_limit: 102400
+            non_basic_services_allowed: true
+            total_reserved_route_ports: 100
+            total_routes: 1000
+            total_services: -1
+        resource_pool:
+          blobstore_type: webdav
+          fog_connection: null
+          resource_directory_key: bosh-lite-cc-resources-REDACTED
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        security_group_definitions:
+        - name: public_networks
+          rules:
+          - destination: 0.0.0.0-9.255.255.255
+            protocol: all
+          - destination: 11.0.0.0-169.253.255.255
+            protocol: all
+          - destination: 169.255.0.0-172.15.255.255
+            protocol: all
+          - destination: 172.32.0.0-192.167.255.255
+            protocol: all
+          - destination: 192.169.0.0-255.255.255.255
+            protocol: all
+        - name: dns
+          rules:
+          - destination: 0.0.0.0/0
+            ports: "53"
+            protocol: tcp
+          - destination: 0.0.0.0/0
+            ports: "53"
+            protocol: udp
+        - name: services
+          rules:
+          - destination: 10.244.0.0/16
+            protocol: all
+        - name: load_balancer
+          rules:
+          - destination: 10.244.0.34
+            protocol: all
+        staging_upload_password: REDACTED
+        staging_upload_user: staging_upload_user
+        volume_services_enabled: true
+      ccdb:
+        address: 10.244.2.2
+        databases:
+        - citext: true
+          name: ccdb
+          tag: cc
+        db_scheme: postgres
+        port: 5432
+        roles:
+        - name: ccadmin
+          password: REDACTED
+          tag: admin
+      hm9000:
+        port: -1
+      logger_endpoint:
+        port: 443
+      router:
+        route_services_secret: REDACTED
+      routing_api:
+        enabled: true
+      ssl:
+        skip_cert_verify: true
+      system_domain: system.bosh-lite.com
+      system_domain_organization: system
+      uaa:
+        ca_cert: REDACTED
+        clients:
+          cc-service-dashboards:
+            secret: ( grab meta.uaa.cc_broker_secret ))
+          cc_routing:
+            secret: REDACTED
+          cloud_controller_username_lookup:
+            secret: REDACTED
+        ssl:
+          port: 8443
+        url: https://uaa.system.bosh-lite.com
+    provides:
+      cloud_controller:
+        as: cloud_controller
+        shared: true
+    release: capi
+  - name: binary-buildpack
+    release: binary-buildpack
+  - name: dotnet-core-buildpack
+    release: dotnet-core-buildpack
+  - name: go-buildpack
+    release: go-buildpack
+  - name: java-buildpack
+    release: java-buildpack
+  - name: nodejs-buildpack
+    release: nodejs-buildpack
+  - name: php-buildpack
+    release: php-buildpack
+  - name: python-buildpack
+    release: python-buildpack
+  - name: ruby-buildpack
+    release: ruby-buildpack
+  - name: staticfile-buildpack
+    release: staticfile-buildpack
+  - name: route_registrar
+    properties:
+      route_registrar:
+        routes:
+        - health_check:
+            name: api-health-check
+            script_path: /var/vcap/jobs/cloud_controller_ng/bin/cloud_controller_ng_health_check
+            timeout: 3s
+          name: api
+          port: 9022
+          registration_interval: 20s
+          uris:
+          - api.system.bosh-lite.com
+        - name: policy-server
+          port: 4002
+          registration_interval: 20s
+          uris:
+          - api.system.bosh-lite.com/networking
+    release: routing
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  - name: statsd_injector
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          statsd_injector:
+            cert: REDACTED
+            key: REDACTED
+      statsd_injector:
+        deployment: system.bosh-lite.com
+    release: statsd-injector
+  - name: routing-api
+    properties:
+      routing_api:
+        router_groups:
+        - name: default-tcp
+          reservable_ports: 1024-1123
+          type: tcp
+        sqldb:
+          host: 10.244.2.2
+          password: REDACTED
+          port: 5432
+          schema: routingdb
+          type: postgres
+          username: routingadmin
+        system_domain: system.bosh-lite.com
+      uaa:
+        ca_cert: REDACTED
+        tls_port: 8443
+    release: routing
+  - name: policy-server
+    properties:
+      cf_networking:
+        policy_server:
+          ca_cert: REDACTED
+          database:
+            host: 10.244.2.2
+            name: netpoldb
+            password: REDACTED
+            port: 5432
+            type: postgres
+            username: netpoladmin
+          server_cert: REDACTED
+          server_key: REDACTED
+          uaa_ca: REDACTED
+          uaa_client_secret: REDACTED
+    release: cf-networking
+  - name: cloud_controller_worker
+    properties:
+      app_domains:
+      - run.bosh-lite.com
+      cc:
+        buildpacks:
+          blobstore_type: webdav
+          buildpack_directory_key: bosh-lite-cc-buildpacks-REDACTED
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        bulk_api_password: REDACTED
+        db_encryption_key: REDACTED
+        db_logging_level: debug2
+        default_app_memory: 256
+        default_running_security_groups:
+        - public_networks
+        - dns
+        - services
+        - load_balancer
+        default_staging_security_groups:
+        - public_networks
+        - dns
+        - services
+        - load_balancer
+        default_to_diego_backend: true
+        droplets:
+          blobstore_type: webdav
+          droplet_directory_key: bosh-lite-cc-droplets-REDACTED
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        install_buildpacks:
+        - name: binary_buildpack
+          package: binary-buildpack
+        - name: dotnet_core_buildpack
+          package: dotnet-core-buildpack
+        - name: go_buildpack
+          package: go-buildpack
+        - name: java_buildpack
+          package: java-buildpack
+        - name: nodejs_buildpack
+          package: nodejs-buildpack
+        - name: php_buildpack
+          package: php-buildpack
+        - name: python_buildpack
+          package: python-buildpack
+        - name: ruby_buildpack
+          package: ruby-buildpack
+        - name: staticfile_buildpack
+          package: staticfile-buildpack
+        internal_api_password: REDACTED
+        internal_api_user: internal_api_user
+        logging_level: info
+        mutual_tls:
+          ca_cert: REDACTED
+          private_key: REDACTED
+          public_cert: REDACTED
+        packages:
+          app_package_directory_key: bosh-lite-cc-packages-REDACTED
+          blobstore_type: webdav
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        quota_definitions:
+          default:
+            memory_limit: 102400
+            non_basic_services_allowed: true
+            total_reserved_route_ports: 100
+            total_routes: 1000
+            total_services: -1
+        resource_pool:
+          blobstore_type: webdav
+          fog_connection: null
+          resource_directory_key: bosh-lite-cc-resources-REDACTED
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        security_group_definitions:
+        - name: public_networks
+          rules:
+          - destination: 0.0.0.0-9.255.255.255
+            protocol: all
+          - destination: 11.0.0.0-169.253.255.255
+            protocol: all
+          - destination: 169.255.0.0-172.15.255.255
+            protocol: all
+          - destination: 172.32.0.0-192.167.255.255
+            protocol: all
+          - destination: 192.169.0.0-255.255.255.255
+            protocol: all
+        - name: dns
+          rules:
+          - destination: 0.0.0.0/0
+            ports: "53"
+            protocol: tcp
+          - destination: 0.0.0.0/0
+            ports: "53"
+            protocol: udp
+        - name: services
+          rules:
+          - destination: 10.244.0.0/16
+            protocol: all
+        - name: load_balancer
+          rules:
+          - destination: 10.244.0.34
+            protocol: all
+        staging_upload_password: REDACTED
+        staging_upload_user: staging_upload_user
+        volume_services_enabled: true
+      ccdb:
+        address: 10.244.2.2
+        databases:
+        - citext: true
+          name: ccdb
+          tag: cc
+        db_scheme: postgres
+        port: 5432
+        roles:
+        - name: ccadmin
+          password: REDACTED
+          tag: admin
+      hm9000:
+        port: -1
+      logger_endpoint:
+        port: 443
+      routing_api:
+        enabled: true
+      ssl:
+        skip_cert_verify: true
+      system_domain: system.bosh-lite.com
+      system_domain_organization: system
+      uaa:
+        ca_cert: REDACTED
+        clients:
+          cc-service-dashboards:
+            secret: ( grab meta.uaa.cc_broker_secret ))
+          cc_routing:
+            secret: REDACTED
+          cloud_controller_username_lookup:
+            secret: REDACTED
+        ssl:
+          port: 8443
+        url: https://uaa.system.bosh-lite.com
+    release: capi
+  - name: cloud_controller_clock
+    properties:
+      app_domains:
+      - run.bosh-lite.com
+      cc:
+        buildpacks:
+          blobstore_type: webdav
+          buildpack_directory_key: bosh-lite-cc-buildpacks-REDACTED
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        bulk_api_password: REDACTED
+        db_encryption_key: REDACTED
+        db_logging_level: debug2
+        default_app_memory: 256
+        default_running_security_groups:
+        - public_networks
+        - dns
+        - services
+        - load_balancer
+        default_staging_security_groups:
+        - public_networks
+        - dns
+        - services
+        - load_balancer
+        default_to_diego_backend: true
+        droplets:
+          blobstore_type: webdav
+          droplet_directory_key: bosh-lite-cc-droplets-REDACTED
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        install_buildpacks:
+        - name: binary_buildpack
+          package: binary-buildpack
+        - name: dotnet_core_buildpack
+          package: dotnet-core-buildpack
+        - name: go_buildpack
+          package: go-buildpack
+        - name: java_buildpack
+          package: java-buildpack
+        - name: nodejs_buildpack
+          package: nodejs-buildpack
+        - name: php_buildpack
+          package: php-buildpack
+        - name: python_buildpack
+          package: python-buildpack
+        - name: ruby_buildpack
+          package: ruby-buildpack
+        - name: staticfile_buildpack
+          package: staticfile-buildpack
+        internal_api_password: REDACTED
+        internal_api_user: internal_api_user
+        logging_level: info
+        mutual_tls:
+          ca_cert: REDACTED
+          private_key: REDACTED
+          public_cert: REDACTED
+        packages:
+          app_package_directory_key: bosh-lite-cc-packages-REDACTED
+          blobstore_type: webdav
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        quota_definitions:
+          default:
+            memory_limit: 102400
+            non_basic_services_allowed: true
+            total_reserved_route_ports: 100
+            total_routes: 1000
+            total_services: -1
+        resource_pool:
+          blobstore_type: webdav
+          fog_connection: null
+          resource_directory_key: bosh-lite-cc-resources-REDACTED
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        security_group_definitions:
+        - name: public_networks
+          rules:
+          - destination: 0.0.0.0-9.255.255.255
+            protocol: all
+          - destination: 11.0.0.0-169.253.255.255
+            protocol: all
+          - destination: 169.255.0.0-172.15.255.255
+            protocol: all
+          - destination: 172.32.0.0-192.167.255.255
+            protocol: all
+          - destination: 192.169.0.0-255.255.255.255
+            protocol: all
+        - name: dns
+          rules:
+          - destination: 0.0.0.0/0
+            ports: "53"
+            protocol: tcp
+          - destination: 0.0.0.0/0
+            ports: "53"
+            protocol: udp
+        - name: services
+          rules:
+          - destination: 10.244.0.0/16
+            protocol: all
+        - name: load_balancer
+          rules:
+          - destination: 10.244.0.34
+            protocol: all
+        staging_upload_password: REDACTED
+        staging_upload_user: staging_upload_user
+        volume_services_enabled: true
+      ccdb:
+        address: 10.244.2.2
+        databases:
+        - citext: true
+          name: ccdb
+          tag: cc
+        db_scheme: postgres
+        port: 5432
+        roles:
+        - name: ccadmin
+          password: REDACTED
+          tag: admin
+      hm9000:
+        port: -1
+      logger_endpoint:
+        port: 443
+      routing_api:
+        enabled: true
+      ssl:
+        skip_cert_verify: true
+      system_domain: system.bosh-lite.com
+      system_domain_organization: system
+      uaa:
+        ca_cert: REDACTED
+        clients:
+          cc-service-dashboards:
+            secret: ( grab meta.uaa.cc_broker_secret ))
+          cc_routing:
+            secret: REDACTED
+          cloud_controller_username_lookup:
+            secret: REDACTED
+        ssl:
+          port: 8443
+        url: https://uaa.system.bosh-lite.com
+    release: capi
+  name: api
+  networks:
+  - name: cf-core
+  stemcell: default
+  vm_extensions:
+  - 50GB_ephemeral_disk
+  vm_type: medium
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 0
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    release: consul
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  - name: cloud_controller_worker
+    properties:
+      app_domains:
+      - run.bosh-lite.com
+      cc:
+        buildpacks:
+          blobstore_type: webdav
+          buildpack_directory_key: bosh-lite-cc-buildpacks-REDACTED
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        bulk_api_password: REDACTED
+        db_encryption_key: REDACTED
+        db_logging_level: debug2
+        default_app_memory: 256
+        default_running_security_groups:
+        - public_networks
+        - dns
+        - services
+        - load_balancer
+        default_staging_security_groups:
+        - public_networks
+        - dns
+        - services
+        - load_balancer
+        default_to_diego_backend: true
+        droplets:
+          blobstore_type: webdav
+          droplet_directory_key: bosh-lite-cc-droplets-REDACTED
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        install_buildpacks:
+        - name: binary_buildpack
+          package: binary-buildpack
+        - name: dotnet_core_buildpack
+          package: dotnet-core-buildpack
+        - name: go_buildpack
+          package: go-buildpack
+        - name: java_buildpack
+          package: java-buildpack
+        - name: nodejs_buildpack
+          package: nodejs-buildpack
+        - name: php_buildpack
+          package: php-buildpack
+        - name: python_buildpack
+          package: python-buildpack
+        - name: ruby_buildpack
+          package: ruby-buildpack
+        - name: staticfile_buildpack
+          package: staticfile-buildpack
+        internal_api_password: REDACTED
+        internal_api_user: internal_api_user
+        logging_level: info
+        mutual_tls:
+          ca_cert: REDACTED
+          private_key: REDACTED
+          public_cert: REDACTED
+        packages:
+          app_package_directory_key: bosh-lite-cc-packages-REDACTED
+          blobstore_type: webdav
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        quota_definitions:
+          default:
+            memory_limit: 102400
+            non_basic_services_allowed: true
+            total_reserved_route_ports: 100
+            total_routes: 1000
+            total_services: -1
+        resource_pool:
+          blobstore_type: webdav
+          fog_connection: null
+          resource_directory_key: bosh-lite-cc-resources-REDACTED
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        security_group_definitions:
+        - name: public_networks
+          rules:
+          - destination: 0.0.0.0-9.255.255.255
+            protocol: all
+          - destination: 11.0.0.0-169.253.255.255
+            protocol: all
+          - destination: 169.255.0.0-172.15.255.255
+            protocol: all
+          - destination: 172.32.0.0-192.167.255.255
+            protocol: all
+          - destination: 192.169.0.0-255.255.255.255
+            protocol: all
+        - name: dns
+          rules:
+          - destination: 0.0.0.0/0
+            ports: "53"
+            protocol: tcp
+          - destination: 0.0.0.0/0
+            ports: "53"
+            protocol: udp
+        - name: services
+          rules:
+          - destination: 10.244.0.0/16
+            protocol: all
+        - name: load_balancer
+          rules:
+          - destination: 10.244.0.34
+            protocol: all
+        staging_upload_password: REDACTED
+        staging_upload_user: staging_upload_user
+        volume_services_enabled: true
+      ccdb:
+        address: 10.244.2.2
+        databases:
+        - citext: true
+          name: ccdb
+          tag: cc
+        db_scheme: postgres
+        port: 5432
+        roles:
+        - name: ccadmin
+          password: REDACTED
+          tag: admin
+      hm9000:
+        port: -1
+      logger_endpoint:
+        port: 443
+      routing_api:
+        enabled: true
+      ssl:
+        skip_cert_verify: true
+      system_domain: system.bosh-lite.com
+      system_domain_organization: system
+      uaa:
+        ca_cert: REDACTED
+        clients:
+          cc-service-dashboards:
+            secret: ( grab meta.uaa.cc_broker_secret ))
+          cc_routing:
+            secret: REDACTED
+          cloud_controller_username_lookup:
+            secret: REDACTED
+        ssl:
+          port: 8443
+        url: https://uaa.system.bosh-lite.com
+    release: capi
+  name: cc-worker
+  networks:
+  - name: cf-core
+  stemcell: default
+  vm_type: medium
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    properties:
+      consul:
+        agent:
+          services:
+            gorouter: {}
+    release: consul
+  - name: gorouter
+    properties:
+      router:
+        enable_ssl: false
+        logging_level: info
+        route_services_secret: REDACTED
+        ssl_skip_validation: true
+        status:
+          password: REDACTED
+          user: health
+        tls_pem: null
+        tracing:
+          enable_zipkin: true
+      routing_api:
+        enabled: true
+      uaa:
+        ca_cert: REDACTED
+        clients:
+          gorouter:
+            secret: REDACTED
+        ssl:
+          port: 8443
+    release: routing
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  name: router
+  networks:
+  - name: cf-edge
+    static_ips:
+    - 10.244.0.2
+  stemcell: default
+  update:
+    max_in_flight: 1
+    serial: true
+  vm_extensions:
+  - cf-elb
+  vm_type: small
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    release: consul
+  - name: cfdot
+    properties:
+      diego:
+        cfdot:
+          bbs:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+    release: diego
+  - name: ssh_proxy
+    properties:
+      diego:
+        ssh_proxy:
+          bbs:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+          enable_cf_auth: true
+          host_key: REDACTED
+          uaa:
+            ca_cert: REDACTED
+            port: 8443
+          uaa_secret: REDACTED
+        ssl:
+          skip_cert_verify: true
+    release: diego
+  - name: file_server
+    release: diego
+  - name: auctioneer
+    properties:
+      diego:
+        auctioneer:
+          bbs:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+          ca_cert: REDACTED
+          rep:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+          server_cert: REDACTED
+          server_key: REDACTED
+    release: diego
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  migrated_from:
+  - name: access
+  name: diego-brain
+  networks:
+  - name: cf-edge
+    static_ips:
+    - 10.244.0.7
+  stemcell: default
+  update:
+    serial: true
+  vm_extensions:
+  - ssh-elb
+  vm_type: small
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    release: consul
+  - name: cflinuxfs2-rootfs-setup
+    release: cflinuxfs2
+  - name: garden
+    properties:
+      garden:
+        cleanup_process_dirs_on_wait: true
+        debug_listen_address: 127.0.0.1:17019
+        default_container_grace_time: 0
+        deny_networks:
+        - 0.0.0.0/0
+        destroy_containers_on_start: true
+        graph_cleanup_threshold_in_mb: 0
+        network_plugin: /var/vcap/packages/runc-cni/bin/garden-external-networker
+        network_plugin_extra_args:
+        - --configFile=/var/vcap/jobs/garden-cni/config/adapter.json
+        persistent_image_list:
+        - /var/vcap/packages/cflinuxfs2/rootfs
+    release: garden-runc
+  - name: rep
+    properties:
+      diego:
+        rep:
+          bbs:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+          ca_cert: REDACTED
+          enable_legacy_api_endpoints: false
+          preloaded_rootfses:
+          - cflinuxfs2:/var/vcap/packages/cflinuxfs2/rootfs
+          require_tls: true
+          server_cert: REDACTED
+          server_key: REDACTED
+        ssl:
+          skip_cert_verify: true
+      tls:
+        ca_cert: REDACTED
+        cert: REDACTED
+        key: REDACTED
+    release: diego
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  - name: cfdot
+    properties:
+      diego:
+        cfdot:
+          bbs:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+    release: diego
+  - name: route_emitter
+    properties:
+      diego:
+        route_emitter:
+          bbs:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+          local_mode: true
+      tcp:
+        enabled: true
+      uaa:
+        ca_cert: REDACTED
+        client_secret: REDACTED
+    release: diego
+  - name: garden-cni
+    release: cf-networking
+  - name: netmon
+    release: cf-networking
+  - name: vxlan-policy-agent
+    properties:
+      cf_networking:
+        vxlan_policy_agent:
+          ca_cert: REDACTED
+          client_cert: REDACTED
+          client_key: REDACTED
+    release: cf-networking
+  - name: silk-daemon
+    properties:
+      cf_networking:
+        silk_daemon:
+          ca_cert: REDACTED
+          client_cert: REDACTED
+          client_key: REDACTED
+    release: cf-networking
+  - name: silk-cni
+    release: cf-networking
+  migrated_from:
+  - name: cell
+  name: diego-cell
+  networks:
+  - name: cf-runtime
+  stemcell: default
+  update:
+    canary_watch_time: 30000-720000
+    update_watch_time: 30000-720000
+  vm_extensions:
+  - 100GB_ephemeral_disk
+  vm_type: runtime
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 0
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    release: consul
+  - name: cloud_controller_clock
+    properties:
+      app_domains:
+      - run.bosh-lite.com
+      cc:
+        buildpacks:
+          blobstore_type: webdav
+          buildpack_directory_key: bosh-lite-cc-buildpacks-REDACTED
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        bulk_api_password: REDACTED
+        db_encryption_key: REDACTED
+        db_logging_level: debug2
+        default_app_memory: 256
+        default_running_security_groups:
+        - public_networks
+        - dns
+        - services
+        - load_balancer
+        default_staging_security_groups:
+        - public_networks
+        - dns
+        - services
+        - load_balancer
+        default_to_diego_backend: true
+        droplets:
+          blobstore_type: webdav
+          droplet_directory_key: bosh-lite-cc-droplets-REDACTED
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        install_buildpacks:
+        - name: binary_buildpack
+          package: binary-buildpack
+        - name: dotnet_core_buildpack
+          package: dotnet-core-buildpack
+        - name: go_buildpack
+          package: go-buildpack
+        - name: java_buildpack
+          package: java-buildpack
+        - name: nodejs_buildpack
+          package: nodejs-buildpack
+        - name: php_buildpack
+          package: php-buildpack
+        - name: python_buildpack
+          package: python-buildpack
+        - name: ruby_buildpack
+          package: ruby-buildpack
+        - name: staticfile_buildpack
+          package: staticfile-buildpack
+        internal_api_password: REDACTED
+        internal_api_user: internal_api_user
+        logging_level: info
+        mutual_tls:
+          ca_cert: REDACTED
+          private_key: REDACTED
+          public_cert: REDACTED
+        packages:
+          app_package_directory_key: bosh-lite-cc-packages-REDACTED
+          blobstore_type: webdav
+          fog_connection: null
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        quota_definitions:
+          default:
+            memory_limit: 102400
+            non_basic_services_allowed: true
+            total_reserved_route_ports: 100
+            total_routes: 1000
+            total_services: -1
+        resource_pool:
+          blobstore_type: webdav
+          fog_connection: null
+          resource_directory_key: bosh-lite-cc-resources-REDACTED
+          webdav_config:
+            blobstore_timeout: 5
+            ca_cert: REDACTED
+            password: REDACTED
+            private_endpoint: https://blobstore.service.cf.internal:4443
+            public_endpoint: https://blobstore.system.bosh-lite.com
+            username: blobstore
+        security_group_definitions:
+        - name: public_networks
+          rules:
+          - destination: 0.0.0.0-9.255.255.255
+            protocol: all
+          - destination: 11.0.0.0-169.253.255.255
+            protocol: all
+          - destination: 169.255.0.0-172.15.255.255
+            protocol: all
+          - destination: 172.32.0.0-192.167.255.255
+            protocol: all
+          - destination: 192.169.0.0-255.255.255.255
+            protocol: all
+        - name: dns
+          rules:
+          - destination: 0.0.0.0/0
+            ports: "53"
+            protocol: tcp
+          - destination: 0.0.0.0/0
+            ports: "53"
+            protocol: udp
+        - name: services
+          rules:
+          - destination: 10.244.0.0/16
+            protocol: all
+        - name: load_balancer
+          rules:
+          - destination: 10.244.0.34
+            protocol: all
+        staging_upload_password: REDACTED
+        staging_upload_user: staging_upload_user
+        volume_services_enabled: true
+      ccdb:
+        address: 10.244.2.2
+        databases:
+        - citext: true
+          name: ccdb
+          tag: cc
+        db_scheme: postgres
+        port: 5432
+        roles:
+        - name: ccadmin
+          password: REDACTED
+          tag: admin
+      hm9000:
+        port: -1
+      logger_endpoint:
+        port: 443
+      routing_api:
+        enabled: true
+      ssl:
+        skip_cert_verify: true
+      system_domain: system.bosh-lite.com
+      system_domain_organization: system
+      uaa:
+        ca_cert: REDACTED
+        clients:
+          cc-service-dashboards:
+            secret: ( grab meta.uaa.cc_broker_secret ))
+          cc_routing:
+            secret: REDACTED
+          cloud_controller_username_lookup:
+            secret: REDACTED
+        ssl:
+          port: 8443
+        url: https://uaa.system.bosh-lite.com
+    release: capi
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  - name: statsd_injector
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          statsd_injector:
+            cert: REDACTED
+            key: REDACTED
+      statsd_injector:
+        deployment: system.bosh-lite.com
+    release: statsd-injector
+  name: cc-clock
+  networks:
+  - name: cf-core
+  stemcell: default
+  vm_type: small
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    release: consul
+  - name: stager
+    properties:
+      capi:
+        stager:
+          bbs:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+          cc:
+            basic_auth_password: REDACTED
+            basic_auth_username: internal_api_user
+    release: capi
+  - name: nsync
+    properties:
+      capi:
+        nsync:
+          bbs:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+          cc:
+            base_url: https://api.system.bosh-lite.com
+            basic_auth_password: REDACTED
+            basic_auth_username: internal_api_user
+      diego:
+        ssl:
+          skip_cert_verify: true
+    release: capi
+  - name: tps
+    properties:
+      capi:
+        tps:
+          bbs:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+          cc:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+    release: capi
+  - name: cc_uploader
+    properties:
+      capi:
+        cc_uploader:
+          cc:
+            ca_cert: REDACTED
+            client_cert: REDACTED
+            client_key: REDACTED
+          mutual_tls:
+            ca_cert: REDACTED
+            server_cert: REDACTED
+            server_key: REDACTED
+    release: capi
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  migrated_from:
+  - name: diego
+  name: cc-bridge
+  networks:
+  - name: cf-core
+  stemcell: default
+  vm_type: medium
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    properties:
+      consul:
+        agent:
+          services:
+            loggregator_trafficcontroller: {}
+    release: consul
+  - name: loggregator_trafficcontroller
+    properties:
+      cc:
+        internal_service_hostname: cloud-controller-ng.service.cf.internal
+        mutual_tls:
+          ca_cert: REDACTED
+        srv_api_uri: https://api.system.bosh-lite.com
+        tls_port: 9023
+      loggregator:
+        etcd:
+          ca_cert: REDACTED
+          client_cert: REDACTED
+          client_key: REDACTED
+          dns_suffix: cf-etcd.service.cf.internal
+          machines:
+          - cf-etcd.service.cf.internal
+          require_ssl: true
+        tls:
+          ca_cert: REDACTED
+          cc_trafficcontroller:
+            cert: REDACTED
+            key: REDACTED
+          trafficcontroller:
+            cert: REDACTED
+            key: REDACTED
+        uaa:
+          client_secret: REDACTED
+      ssl:
+        skip_cert_verify: true
+      system_domain: system.bosh-lite.com
+      traffic_controller:
+        etcd:
+          ca_cert: REDACTED
+          client_cert: REDACTED
+          client_key: REDACTED
+          dns_suffix: cf-etcd.service.cf.internal
+          machines:
+          - cf-etcd.service.cf.internal
+          require_ssl: true
+      uaa:
+        ca_cert: REDACTED
+        internal_url: https://uaa.service.cf.internal:8443
+        url: https://uaa.system.bosh-lite.com
+    release: loggregator
+  - name: route_registrar
+    properties:
+      route_registrar:
+        routes:
+        - name: loggregator
+          port: 8080
+          registration_interval: 20s
+          uris:
+          - loggregator.system.bosh-lite.com
+        - name: doppler
+          port: 8081
+          registration_interval: 20s
+          uris:
+          - doppler.system.bosh-lite.com
+          - '*.doppler.system.bosh-lite.com'
+    release: routing
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  migrated_from:
+  - name: loggregator_trafficcontroller
+  name: log-api
+  networks:
+  - name: cf-core
+  stemcell: default
+  update:
+    max_in_flight: 1
+    serial: true
+  vm_type: medium
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - consumes:
+      consul_client:
+        from: consul_client_link
+      consul_common:
+        from: consul_common_link
+      consul_server: nil
+    name: consul_agent
+    release: consul
+  - name: tcp_router
+    properties:
+      tcp_router:
+        oauth_secret: REDACTED
+        router_group: default-tcp
+      uaa:
+        ca_cert: REDACTED
+        tls_port: 8443
+    release: routing
+  - name: metron_agent
+    properties:
+      loggregator:
+        tls:
+          ca_cert: REDACTED
+          metron:
+            cert: REDACTED
+            key: REDACTED
+      metron_agent:
+        deployment: system.bosh-lite.com
+      metron_endpoint:
+        shared_secret: REDACTED
+    release: loggregator
+  name: tcp-router
+  networks:
+  - name: cf-edge
+    static_ips:
+    - 10.244.0.39
+  stemcell: default
+  vm_extensions:
+  - tcp-elb
+  vm_type: small
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 1
+  jobs:
+  - name: smoke_tests
+    properties:
+      acceptance_tests:
+        addresses:
+        - 10.244.0.39
+        cloud_controller:
+          admin_password: REDACTED
+          admin_user: admin
+          api: api.system.bosh-lite.com
+          apps_domain: run.bosh-lite.com
+          use_http: true
+        default_timeout: 180
+        include_http_routes: true
+        skip_ssl_validation: true
+        system_domain: system.bosh-lite.com
+        tcp_router_group: default-tcp
+        verbose: false
+      smoke_tests:
+        tcp_apps_domain: 10.244.0.39.sslip.io
+      tcp_emitter:
+        oauth_secret: REDACTED
+    release: routing
+  lifecycle: errand
+  name: tcp_smoke_tests
+  networks:
+  - name: cf-core
+  stemcell: default
+  vm_type: small
+name: bosh-lite-cf
+releases:
+- name: binary-buildpack
+  sha1: c5ba6b6d99b972ec34dece478302351d8b4f6bbc
+  url: https://bosh.io/d/github.com/cloudfoundry/binary-buildpack-release?v=1.0.14
+  version: 1.0.14
+- name: capi
+  sha1: 108794c6db23467462af24a6f9c4612269520882
+  url: https://bosh.io/d/github.com/cloudfoundry/capi-release?v=1.40.0
+  version: 1.40.0
+- name: cf-mysql
+  sha1: 746240c005465ffa105ee89e53e401e311b4fbf8
+  url: https://bosh.io/d/github.com/cloudfoundry/cf-mysql-release?v=36
+  version: "36"
+- name: cf-networking
+  sha1: 3df279a62fe0216284c9e1b47df4bf98b924f0be
+  url: https://bosh.io/d/github.com/cloudfoundry-incubator/cf-networking-release?v=1.4.0
+  version: 1.4.0
+- name: cf-smoke-tests
+  sha1: 141ef92c9b30ad91424de307e09b306818f6a89e
+  url: https://bosh.io/d/github.com/cloudfoundry/cf-smoke-tests-release?v=38
+  version: "38"
+- name: cflinuxfs2
+  sha1: 65436c83d2ac05f7c1fc37e9073c8a665a63ef4c
+  url: https://bosh.io/d/github.com/cloudfoundry/cflinuxfs2-release?v=1.148.0
+  version: 1.148.0
+- name: consul
+  sha1: a8beaed125cc4edcf7a21ee3bff51985eed2b2a1
+  url: https://bosh.io/d/github.com/cloudfoundry-incubator/consul-release?v=173
+  version: "173"
+- name: diego
+  sha1: a99d4914d08ea395955163e0b0882221e022248d
+  url: https://bosh.io/d/github.com/cloudfoundry/diego-release?v=1.25.1
+  version: 1.25.1
+- name: dotnet-core-buildpack
+  sha1: ee292aa57b7eab52162a7499ad472864df567695
+  url: https://bosh.io/d/github.com/cloudfoundry/dotnet-core-buildpack-release?v=1.0.23
+  version: 1.0.23
+- name: etcd
+  sha1: 670bf17cea0e6e56bdac33956545b3e302062521
+  url: https://bosh.io/d/github.com/cloudfoundry-incubator/etcd-release?v=117
+  version: "117"
+- name: garden-runc
+  sha1: de976393aa5f2e26913dec02770076cb4cd966d2
+  url: https://bosh.io/d/github.com/cloudfoundry/garden-runc-release?v=1.9.2
+  version: 1.9.2
+- name: go-buildpack
+  sha1: d9d0f9feb07ca9dd5f58c95d458e5935e69ee892
+  url: https://bosh.io/d/github.com/cloudfoundry/go-buildpack-release?v=1.8.6
+  version: 1.8.6
+- name: java-buildpack
+  sha1: 4248c595e596536cdb2ffeeefee153c5d76fbe7d
+  url: https://bosh.io/d/github.com/cloudfoundry/java-buildpack-release?v=3.19
+  version: "3.19"
+- name: loggregator
+  sha1: c8cc33bf38d8ea88e004672f98dbc8b51f3d1eff
+  url: https://bosh.io/d/github.com/cloudfoundry/loggregator?v=92
+  version: "92"
+- name: nats
+  sha1: 1300071c7cf43f5d299a6eaec6f6bb6cca7eac3b
+  url: https://bosh.io/d/github.com/cloudfoundry/nats-release?v=22
+  version: "22"
+- name: nodejs-buildpack
+  sha1: 25a924abd54b029e7f01e80b3dca56bcbab1da32
+  url: https://bosh.io/d/github.com/cloudfoundry/nodejs-buildpack-release?v=1.6.4
+  version: 1.6.4
+- name: php-buildpack
+  sha1: 7eadd84e55cd6c87510fb75de9d325e61faba1ce
+  url: https://bosh.io/d/github.com/cloudfoundry/php-buildpack-release?v=4.3.39
+  version: 4.3.39
+- name: python-buildpack
+  sha1: 7b81cbc5694228c7015ee3d39a45a19bd84b336c
+  url: https://bosh.io/d/github.com/cloudfoundry/python-buildpack-release?v=1.5.22
+  version: 1.5.22
+- name: routing
+  sha1: 05a4c2c7eac94dca40fb622cc936b8f0271ca04f
+  url: https://bosh.io/d/github.com/cloudfoundry-incubator/cf-routing-release?v=0.161.0
+  version: 0.161.0
+- name: ruby-buildpack
+  sha1: 23e4e12f7a3ccadda59727eb95b26a853e86fbbe
+  url: https://bosh.io/d/github.com/cloudfoundry/ruby-buildpack-release?v=1.6.46
+  version: 1.6.46
+- name: staticfile-buildpack
+  sha1: 40e3b8a5a9d540fc53c41f5e164ed636420e9e3e
+  url: https://bosh.io/d/github.com/cloudfoundry/staticfile-buildpack-release?v=1.4.12
+  version: 1.4.12
+- name: statsd-injector
+  sha1: b0f201e0341af9736848514c76149070ea902e41
+  url: https://bosh.io/d/github.com/cloudfoundry/statsd-injector-release?v=1.0.30
+  version: 1.0.30
+- name: uaa
+  sha1: 4d4fba13b724b75206f5eb3abae8efa94dcf7db8
+  url: https://bosh.io/d/github.com/cloudfoundry/uaa-release?v=45
+  version: "45"
+- name: haproxy
+  sha1: a3a911f0cf8e672b27c6cb16318fd8c7c77f5bde
+  url: https://github.com/cloudfoundry-incubator/haproxy-boshrelease/releases/download/v8.4.0/haproxy-8.4.0.tgz
+  version: 8.4.0
+- name: postgres
+  sha1: 8b82c86b7763abdb8f117523b852d1e1c9a20eeb
+  url: https://github.com/cloudfoundry-community/postgres-boshrelease/releases/download/v1.0.4/postgres-1.0.4.tgz
+  version: 1.0.4
+stemcells:
+- alias: default
+  os: ubuntu-trusty
+  version: latest
+update:
+  canaries: 1
+  canary_watch_time: 30000-180000
+  max_in_flight: 50
+  serial: false
+  update_watch_time: 30000-180000
+variables:
+- name: uaa_clients_tcp_router_secret
+  type: password
+

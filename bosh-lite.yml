@@ -1,0 +1,91 @@
+---
+kit:
+  name:    cf
+  version: 0.2.0
+  subkits:
+  - db-internal-postgres
+  - blobstore-webdav
+  - haproxy-tls
+  - tcp-routing
+  - small-footprint
+  - minimum-vms
+
+params:
+  env:   bosh-lite
+  vault: bosh/lite/cf
+  bosh: vbox
+
+  # This is used to autocalculate many domain-based values of your Cloud Foundry.
+  # Changing it will have widespread changes throughout the installation. If you change
+  # this, make sure to audit the domains available in your system org, as well as
+  # the shared domains.
+  # (e.g. bosh-lite.com)
+  base_domain: bosh-lite.com
+
+  # Used to scale out the number of VMs performing various jobs. Here are some commonly
+  # scaled instance groups, but all can be used, following the pattern
+  # `<instance_group_name>_instances`
+  #cell_instances: 3
+  #router_instances: 2
+  #diego_instances: 2
+  #loggregator_instances: 2
+
+  # To ensure that CF apps have access to talk to their services, we've added a default
+  # Application Security Group called `services`. It needs a list of networks that you
+  # wish to allow applications to access.
+  app_services_networks:
+  - destination: 10.244.0.0/16
+    protocol: all
+
+  # To ensure that CF apps can talk to other CF applications, we've added a default
+  # Application Security Group to allow access to the CF public IPs. This property
+  # needs a list of all the public IPs your Cloud Foundry domains are in front of
+  # Try `dig @8.8.8.8 +short myapp.<domain>` for each of your CF domains to get a full
+  # list.
+  cf_public_ips:
+  - destination: 10.244.0.34
+    protocol: all
+
+  # Override the default amount of memory given to new Apps when they are created.
+  # Users may request apps have more memory, but if
+  # this is commonly overridden to the same value
+  # for all apps, consider updating the default here
+  #default_app_memory: 256
+
+  # This tells various CF components to skip strict
+  # SSL certificate validation when connecting over HTTPS
+  # This should only be used in non-production environments,
+  # if the SSL certs for CF itself are self-signed
+  skip_ssl_validation: true
+
+  # Sets the log level for various CF components (API, UAA, router, Consul)
+  #log_level: info
+
+  # This is the port that CF will advertise the
+  # doppler/loggregator endpoint on. Usually either
+  # 443 or 4443, depending on how your load balancer
+  # handles WebSockets
+  #logger_port: 443
+
+  # The `internal_only_domains` are used to tell HA Proxy what domains to refuse requests for
+  # unless the requests originate from addresses in the `trusted_domain_cidrs`. This is
+  # useful for hiding private domains that only your apps should be able to see. Consider
+  # using this even if the domain is not publicly resolvable, as HTTP Host header spoofing
+  # could otherwise be used to access the private apps.
+  #internal_only_domains: []
+
+  # The `trusted_domain_cidrs` are used to whitelist traffic destined for domains in the list
+  # of `internal_only_domains`. If a request goes to an internal only domain, and isn't
+  # from the trusted CIDRs, it is blocked. This should be specified as a space-separated list.
+  #trusted_domain_cidrs: ""
+
+  # Disables TLS v1.0 or v1.1 respectively
+  #disable_tls_10: false
+  #disable_tls_11: false
+
+  # This is the domain to be used for the `default-tcp' routing
+  # group. It should point to a load balancer that lives in front
+  # of the `tcp-router' VMs (or directly to the `tcp-router' VM
+  # if load balancers are not used). Any apps pushed to CF using
+  # TCP traffic instead of HTTP should use this domain.
+  tcp_apps_domain: 10.244.0.39.sslip.io

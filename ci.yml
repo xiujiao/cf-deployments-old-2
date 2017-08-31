@@ -1,0 +1,50 @@
+pipeline:
+  name: cf-deployments
+  git:
+    host: github.com
+    owner: xiujiao
+    repo:  cf-deployments
+    private_key: (( vault "secret/concourse/git:private" ))
+  
+  slack:
+    webhook: https://hooks.slack.com/services/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
+    channel: botspam
+
+  stemcells:
+    bosh-lite: bosh-warden-boshlite-ubuntu-trusty-go_agent
+
+  vault:
+    role: 09a2cb96-0a13-af1f-79f7-e38f9c266992
+    secret: 82b4d418-57c2-78f4-862a-cabf7ba10e6d
+    url:    https://10.244.8.2
+    verify: no
+
+  locker:
+    url:      https://10.244.10.5:8910
+    username: locker
+    password: (( vault "secret/bosh/lite/concourse/locker/api:password" ))
+
+  boshes:
+    bosh-lite:
+      alias:    vbox
+      url:      https://192.168.50.6:25555
+      ca_cert:  (( vault "secret/bosh/lite/ssl:ca" ))
+      username: admin
+      password: cift9j31v4zgz2qwn5gr
+      stemcells:
+      - bosh-lite
+    sandbox:
+      alias:   sandbox
+      url:      https://192.168.50.6:25555
+      ca_cert:  (( vault "secret/bosh/lite/ssl:ca" ))
+      username: admin
+      password: cift9j31v4zgz2qwn5gr
+      stemcells:
+      - bosh-lite
+
+  errands: [smoke_tests]
+
+  layouts:
+    default: |+
+      auto *bosh-lite
+      bosh-lite -> sandbox
